@@ -88,6 +88,8 @@ impl HuffmanPathReader {
         reader: &mut impl Read,
         encoding_node: &EncodingNode,
     ) -> anyhow::Result<Option<u8>> {
+        const BITS_IN_BYTE: u8 = 8;
+
         if self.bytes_parsed == self.message_size {
             return Ok(None);
         }
@@ -99,26 +101,22 @@ impl HuffmanPathReader {
                 reader.read(&mut self.buf)?;
             }
 
-            // println!("byte: {:0>8b}", self.buf[0]);
-
             let (left, right) = match node {
                 EncodingNode::Leaf { .. } => anyhow::bail!("fix me"),
                 EncodingNode::Node { left, right, .. } => (left, right),
             };
 
-            // println!("bit_pos {}", self.bit_pos);
             let step = self.buf[0] >> self.bit_pos & 0b1;
-            // println!("step: {:b}", step);
 
             match step {
                 0x1 => node = *&left,
                 _ => node = *&right,
             };
 
+            // reset buffer
             self.bit_pos += 1;
-            if self.bit_pos == 8 {
+            if self.bit_pos == BITS_IN_BYTE {
                 self.bit_pos = 0;
-                // println!("reset buf")
             }
 
             match node {
@@ -236,7 +234,7 @@ mod tests {
 
         // input_buf
         // let mut i_buf: Vec<u8> = vec![];
-        let (read_hist, _) = read_header(&buffer[..])?;
+        let read_hist = read_header(&mut &buffer[..])?;
 
         assert_eq!(read_hist.len(), 2);
         assert_eq!(read_hist.get(&97), Some(&5));
