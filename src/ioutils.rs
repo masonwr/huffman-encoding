@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::io::prelude::*;
 use std::mem::size_of;
 
-use crate::encoding::Direction;
+use crate::encoding::{Direction, EncodingNode};
 
 #[derive(Debug)]
 pub struct HuffmanPathWriter {
@@ -66,6 +66,74 @@ impl HuffmanPathWriter {
     }
 }
 
+pub struct HuffmanPathReader {
+    message_size: usize,
+    bytes_parsed: usize,
+    bit_pos: u8,
+    buf: [u8; 1],
+}
+
+impl HuffmanPathReader {
+    pub fn new(message_size: usize) -> Self {
+        HuffmanPathReader {
+            message_size,
+            bytes_parsed: 0,
+            bit_pos: 0,
+            buf: [0],
+        }
+    }
+
+    pub fn next_byte(
+        &mut self,
+        reader: &mut impl Read,
+        encoding_node: &EncodingNode,
+    ) -> anyhow::Result<Option<u8>> {
+        if self.bytes_parsed == self.message_size {
+            return Ok(None);
+        }
+        // single byte at a time
+        let mut node = encoding_node;
+
+        loop {
+            if self.bit_pos == 0 {
+                reader.read(&mut self.buf)?;
+            }
+
+            // println!("byte: {:0>8b}", self.buf[0]);
+
+            let (left, right) = match node {
+                EncodingNode::Leaf { .. } => anyhow::bail!("fix me"),
+                EncodingNode::Node { left, right, .. } => (left, right),
+            };
+
+            // println!("bit_pos {}", self.bit_pos);
+            let step = self.buf[0] >> self.bit_pos & 0b1;
+            // println!("step: {:b}", step);
+
+            match step {
+                0x1 => node = *&left,
+                _ => node = *&right,
+            };
+
+            self.bit_pos += 1;
+            if self.bit_pos == 8 {
+                self.bit_pos = 0;
+                // println!("reset buf")
+            }
+
+            match node {
+                EncodingNode::Leaf { byte, .. } => {
+                    self.bytes_parsed += 1;
+                    return Ok(Some(*byte));
+                }
+                EncodingNode::Node { .. } => {
+                    continue;
+                }
+            }
+        }
+    }
+}
+
 pub fn write_header(writer: &mut impl Write, hist: &BTreeMap<u8, usize>) -> anyhow::Result<()> {
     writer.write(&[hist.len() as u8])?;
 
@@ -78,7 +146,7 @@ pub fn write_header(writer: &mut impl Write, hist: &BTreeMap<u8, usize>) -> anyh
     Ok(())
 }
 
-pub fn read_header(mut reader: impl Read) -> anyhow::Result<(BTreeMap<u8, usize>, impl Read)> {
+pub fn read_header(reader: &mut impl Read) -> anyhow::Result<BTreeMap<u8, usize>> {
     let mut size_buffer = vec![0; 1]; // just get fist byte
     reader.read(&mut size_buffer)?;
     let hist_size = *size_buffer.first().expect("file to not be empty");
@@ -95,7 +163,7 @@ pub fn read_header(mut reader: impl Read) -> anyhow::Result<(BTreeMap<u8, usize>
         hist.insert(val, count);
     }
 
-    Ok((hist, reader))
+    Ok(hist)
 }
 
 #[cfg(test)]
