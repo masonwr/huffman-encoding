@@ -6,10 +6,10 @@ use encoding::EncodingNode;
 use ioutils::{read_header, write_header, HuffmanPathWriter};
 use priorityq::PriorityQ;
 
+use std::collections::BTreeMap;
 use std::io::Read;
-use std::{collections::BTreeMap, path};
 
-use crate::encoding::Direction;
+// use crate::encoding::Direction;
 
 fn main() -> anyhow::Result<()> {
     let mut input_file = std::fs::File::open("moby.txt").expect("could not open file");
@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     let mut in_buffer: Vec<u8> = vec![];
     input_file.read_to_end(&mut in_buffer)?;
 
-    let in_buffer = "aaacbb".bytes();
+    let in_buffer = "aaabbc".bytes();
 
     println!("in_buf.len {}", in_buffer.len());
 
@@ -54,14 +54,13 @@ fn main() -> anyhow::Result<()> {
     for b in in_buffer {
         match st.get(&b) {
             Some(path) => {
-                println!("{}:{:?}", b as char, path);
                 path_writer.write_path(&mut out_buffer, path)?;
             }
             None => anyhow::bail!("key should never be empty"),
         }
     }
-
     path_writer.flush(&mut out_buffer)?;
+
 
     let mut out_buffer = &out_buffer[..];
     // DECODE
@@ -71,7 +70,7 @@ fn main() -> anyhow::Result<()> {
     out_buffer.read_to_end(&mut new_buf);
 
     for b in new_buf {
-        print!("'{:b}'", b);
+        print!("'{:0>8b}'", b);
     }
 
     Ok(())

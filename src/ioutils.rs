@@ -1,7 +1,7 @@
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::mem::size_of;
-use std::{borrow::BorrowMut, collections::BTreeMap};
 
 use crate::encoding::Direction;
 
@@ -24,7 +24,6 @@ impl HuffmanPathWriter {
         writer: &mut impl Write,
         path: &Vec<Direction>,
     ) -> anyhow::Result<()> {
-
         for comp in path {
             self.write_path_comp(writer, comp)?
         }
@@ -37,25 +36,17 @@ impl HuffmanPathWriter {
         writer: &mut impl Write,
         direc: &Direction,
     ) -> anyhow::Result<()> {
-        println!("direc: {:?}", direc);
         // flip left bits on, leave right bits off
 
         match direc {
-            Direction::Left => self.buffer |= (1 << self.bit_count),
-            Direction::Right => {
-                // self.buffer = self.buffer << 1;
-                ()
-                // self.buffer = self.buffer << 1;
-            }
+            Direction::Left => self.buffer |= 1 << self.bit_count,
+            Direction::Right => (),
         };
-
-        println!("buffer: {:#010b}", self.buffer);
-        println!("count: {}", self.bit_count);
 
         self.bit_count += 1;
 
         if self.bit_count == 8 {
-            self.flush(writer);
+            self.flush(writer)?;
         }
 
         Ok(())
@@ -122,7 +113,28 @@ mod tests {
         path_writer.write_path(&mut buffer, &vec![Left, Right, Left, Right])?;
         path_writer.flush(&mut buffer)?;
 
+        assert_eq!(buffer.len(), 1);
         assert_eq!(buffer[0], 0b00000101);
+        buffer.clear();
+
+        path_writer.write_path(
+            &mut buffer,
+            &vec![Left, Right, Left, Left, Left, Left, Right, Left],
+        )?;
+        path_writer.flush(&mut buffer)?;
+        assert_eq!(buffer.len(), 1);
+        assert_eq!(buffer[0], 0b10111101);
+        buffer.clear();
+
+        path_writer.write_path(
+            &mut buffer,
+            &vec![Left, Right, Left, Left, Left, Left, Right, Left, Left],
+        )?;
+        path_writer.flush(&mut buffer)?;
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer[0], 0b10111101);
+        assert_eq!(buffer[1], 0b00000001);
+        buffer.clear();
 
         Ok(())
     }
@@ -156,7 +168,7 @@ mod tests {
 
         // input_buf
         // let mut i_buf: Vec<u8> = vec![];
-        let read_hist = read_header(&buffer[..])?;
+        let (read_hist, _) = read_header(&buffer[..])?;
 
         assert_eq!(read_hist.len(), 2);
         assert_eq!(read_hist.get(&97), Some(&5));
