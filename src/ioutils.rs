@@ -113,8 +113,9 @@ impl HuffmanPathReader {
             let step = self.buf[0] >> self.bit_pos & 0b1;
 
             match step {
-                0x1 => node = *&left,
-                _ => node = *&right,
+                0b1 => node = *&left,
+                0b0 => node = *&right,
+                _ => anyhow::bail!("bad mask!"),
             };
 
             // reset buffer

@@ -7,6 +7,7 @@ use ioutils::{read_header, write_header, HuffmanPathReader, HuffmanPathWriter};
 use priorityq::PriorityQ;
 
 use std::collections::BTreeMap;
+use std::io::Read;
 
 // use crate::encoding::Direction;
 
@@ -15,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     // let mut in_buffer: Vec<u8> = vec![];
     // input_file.read_to_end(&mut in_buffer)?;
 
-    let in_buffer = "aaaa".bytes();
+    let in_buffer = "looks like it is working...".bytes();
 
     // Make byte histogram (this could simply be an array too)
     let mut hist: BTreeMap<u8, usize> = BTreeMap::new();
