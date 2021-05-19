@@ -101,8 +101,12 @@ impl HuffmanPathReader {
                 reader.read(&mut self.buf)?;
             }
 
+            // todo: DRY this out
             let (left, right) = match node {
-                EncodingNode::Leaf { .. } => anyhow::bail!("fix me"),
+                EncodingNode::Leaf { byte, .. } => {
+                    self.bytes_parsed += 1;
+                    return Ok(Some(*byte));
+                }
                 EncodingNode::Node { left, right, .. } => (left, right),
             };
 

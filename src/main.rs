@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     // let mut in_buffer: Vec<u8> = vec![];
     // input_file.read_to_end(&mut in_buffer)?;
 
-    let in_buffer = "i think its working now?".bytes();
+    let in_buffer = "aaaa".bytes();
 
     // Make byte histogram (this could simply be an array too)
     let mut hist: BTreeMap<u8, usize> = BTreeMap::new();
