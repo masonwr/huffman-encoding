@@ -6,27 +6,29 @@ use encoding::EncodingNode;
 use ioutils::{read_header, write_header, HuffmanPathWriter};
 use priorityq::PriorityQ;
 
-use std::collections::BTreeMap;
 use std::io::Read;
+use std::{collections::BTreeMap, path};
 
 use crate::encoding::Direction;
 
 fn main() -> anyhow::Result<()> {
-    let input_file = std::fs::File::open("src/main.rs").expect("could not open file");
-    let bytes = input_file.bytes();
-    let in_buffer = "aaaabbbccd".bytes();
+    let mut input_file = std::fs::File::open("moby.txt").expect("could not open file");
+
+    let mut in_buffer: Vec<u8> = vec![];
+    input_file.read_to_end(&mut in_buffer)?;
+
+    let in_buffer = "aaacbb".bytes();
+
+    println!("in_buf.len {}", in_buffer.len());
 
     // Make byte histogram (this could simply be an array too)
     let mut hist: BTreeMap<u8, usize> = BTreeMap::new();
     for byte in in_buffer.clone() {
-        print!("{:b}", byte);
         let i = byte;
         *hist.entry(i).or_insert(0) += 1;
     }
 
     println!();
-
-    // println!("len: {}", hist.len());
 
     // map histogram to huffman tree nodes, and build priority que
     let mut iter = hist.iter();
@@ -38,58 +40,39 @@ fn main() -> anyhow::Result<()> {
         queue = queue.enque(node);
     }
 
-    // println!("q len: {}", queue.len());
-
     // Loop throught priority que, combining nodes to form tree
     let root = queue.reduce();
-
-    // println!("{:?}", root.count_leaves());
-    // println!("height: {}", root.height());
-
-    // println!("{:#?}", root);
+    println!("{:#?}", root);
 
     let st = root.to_symbol_table();
 
-    // println!("st len: {}", st.len());
     let mut out_buffer: Vec<u8> = vec![];
-    // write_header(&mut out_buffer, &hist)?;
+    write_header(&mut out_buffer, &hist)?;
 
     let mut path_writer = HuffmanPathWriter::new();
 
     for b in in_buffer {
         match st.get(&b) {
             Some(path) => {
-                for p in path {
-                    match p {
-                        Direction::Left => print!("{}", 1),
-                        Direction::Right => print!("{}", 0),
-                    };
-                }
+                println!("{}:{:?}", b as char, path);
                 path_writer.write_path(&mut out_buffer, path)?;
             }
             None => anyhow::bail!("key should never be empty"),
         }
     }
 
-    println!();
+    path_writer.flush(&mut out_buffer)?;
 
-    for b in out_buffer {
-        print!("{:b}", b);
+    let mut out_buffer = &out_buffer[..];
+    // DECODE
+    let (st, mut out_buffer) = read_header(out_buffer)?;
+
+    let mut new_buf: Vec<u8> = vec![];
+    out_buffer.read_to_end(&mut new_buf);
+
+    for b in new_buf {
+        print!("'{:b}'", b);
     }
-
-    println!();
-    // for (k, v) in st.iter() {
-    // println!("({}, {:?})", k, v);
-    // }
-
-    // let r = queue.pop();
-    // println!("{:?}", &r);
-
-    /*
-    TODO:
-    3. pop each node off the priority que building up a single node,
-    4. encode data
-    */
 
     Ok(())
 }

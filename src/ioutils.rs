@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::mem::size_of;
+use std::{borrow::BorrowMut, collections::BTreeMap};
 
 use crate::encoding::Direction;
 
+#[derive(Debug)]
 pub struct HuffmanPathWriter {
     bit_count: u8,
     buffer: u8,
@@ -23,6 +24,7 @@ impl HuffmanPathWriter {
         writer: &mut impl Write,
         path: &Vec<Direction>,
     ) -> anyhow::Result<()> {
+
         for comp in path {
             self.write_path_comp(writer, comp)?
         }
@@ -30,15 +32,25 @@ impl HuffmanPathWriter {
         Ok(())
     }
 
-    fn write_path_comp(&mut self, writer: &mut impl Write, direc: &Direction) -> anyhow::Result<()> {
+    fn write_path_comp(
+        &mut self,
+        writer: &mut impl Write,
+        direc: &Direction,
+    ) -> anyhow::Result<()> {
+        println!("direc: {:?}", direc);
         // flip left bits on, leave right bits off
 
         match direc {
-            Direction::Left => {
-                self.buffer = self.buffer ^ (1 << self.bit_count);
+            Direction::Left => self.buffer |= (1 << self.bit_count),
+            Direction::Right => {
+                // self.buffer = self.buffer << 1;
+                ()
+                // self.buffer = self.buffer << 1;
             }
-            Direction::Right => (),
         };
+
+        println!("buffer: {:#010b}", self.buffer);
+        println!("count: {}", self.bit_count);
 
         self.bit_count += 1;
 
@@ -49,7 +61,11 @@ impl HuffmanPathWriter {
         Ok(())
     }
 
-    fn flush(&mut self, writer: &mut impl Write) -> anyhow::Result<()> {
+    pub fn flush(&mut self, writer: &mut impl Write) -> anyhow::Result<()> {
+        if self.bit_count == 0 {
+            return Ok(());
+        }
+
         writer.write(&vec![self.buffer])?;
 
         self.buffer = 0;
@@ -71,13 +87,13 @@ pub fn write_header(writer: &mut impl Write, hist: &BTreeMap<u8, usize>) -> anyh
     Ok(())
 }
 
-pub fn read_header(mut reader: impl Read) -> anyhow::Result<BTreeMap<u8, usize>> {
+pub fn read_header(mut reader: impl Read) -> anyhow::Result<(BTreeMap<u8, usize>, impl Read)> {
     let mut size_buffer = vec![0; 1]; // just get fist byte
     reader.read(&mut size_buffer)?;
     let hist_size = *size_buffer.first().expect("file to not be empty");
 
     let usize_size = size_of::<usize>();
-    let mut buffer = vec![0; 1 + usize_size]; // just get fist byte
+    let mut buffer = vec![0; 1 + usize_size]; // sized for (k,v) pair (1 byte + usize)
     let mut hist = BTreeMap::new();
     for _ in 0..hist_size {
         reader.read(&mut buffer)?;
@@ -88,7 +104,7 @@ pub fn read_header(mut reader: impl Read) -> anyhow::Result<BTreeMap<u8, usize>>
         hist.insert(val, count);
     }
 
-    Ok(hist)
+    Ok((hist, reader))
 }
 
 #[cfg(test)]
