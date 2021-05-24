@@ -98,17 +98,16 @@ fn impl_make_st(table: Rc<RefCell<SymbolTable>>, tree: &EncodingNode, path: Vec<
             table.borrow_mut().insert(*byte, path);
         }
         EncodingNode::Node { left, right, .. } => {
-            let mut left_path = path.clone();
-            left_path.push(Direction::Left);
-
-            impl_make_st(table.clone(), *&left, left_path);
-
-            let mut right_path = path.clone();
-            right_path.push(Direction::Right);
-
-            impl_make_st(table.clone(), *&right, right_path);
+            impl_make_st(table.clone(), *&left, build_path(&path, Direction::Left));
+            impl_make_st(table.clone(), *&right, build_path(&path, Direction::Right));
         }
     };
+}
+
+fn build_path(path: &[Direction], next: Direction) -> Vec<Direction> {
+    let mut p = path[..].to_vec();
+    p.push(next);
+    p
 }
 
 #[cfg(test)]
