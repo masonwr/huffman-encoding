@@ -1,4 +1,6 @@
+use crate::priorityq::PriorityQ;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use std::rc::Rc;
@@ -24,38 +26,22 @@ pub enum Direction {
 
 pub type SymbolTable = HashMap<u8, Vec<Direction>>;
 
-
-fn impl_make_st(table: Rc<RefCell<SymbolTable>>, tree: &EncodingNode, path: Vec<Direction>) {
-    match tree {
-        EncodingNode::Leaf { byte, .. } => {
-            table.borrow_mut().insert(*byte, path);
-        }
-        EncodingNode::Node { left, right, .. } => {
-            let mut left_path = path.clone();
-            left_path.push(Direction::Left);
-
-            impl_make_st(table.clone(), *&left, left_path);
-
-            let mut right_path = path.clone();
-            right_path.push(Direction::Right);
-
-            impl_make_st(table.clone(), *&right, right_path);
-        }
-    };
+pub fn huffman_tree(hist: &BTreeMap<u8, usize>) -> anyhow::Result<EncodingNode> {
+    Ok(PriorityQ::from(&hist)?.reduce())
 }
 
 impl EncodingNode {
-    pub fn height(&self) -> usize {
-        match self {
-            Self::Leaf { .. } => 1,
-            Self::Node { left, right, .. } => left.height().max(right.height()) + 1,
-        }
-    }
+    pub fn join(n1: EncodingNode, n2: EncodingNode) -> Self {
+        let count = n1.count() + n2.count();
+        let (left, right) = match n1.cmp(&n2) {
+            std::cmp::Ordering::Less => (n1, n2),
+            _ => (n2, n1),
+        };
 
-    pub fn count_leaves(&self) -> usize {
-        match self {
-            Self::Leaf { .. } => 1,
-            Self::Node { left, right, .. } => left.count_leaves() + right.count_leaves(),
+        Self::Node {
+            count,
+            left: left.into(),
+            right: right.into(),
         }
     }
 
@@ -92,32 +78,37 @@ impl EncodingNode {
         }
     }
 
+    pub fn to_symbol_table(&self) -> SymbolTable {
+        let st = Rc::new(RefCell::new(HashMap::new()));
+        impl_make_st(st.clone(), self, vec![]);
+        st.take()
+    }
+
     fn get_min_node(&self) -> &Self {
         match self {
             Self::Leaf { .. } => self,
             Self::Node { left, .. } => left.get_min_node(),
         }
     }
+}
 
-    pub fn join(n1: EncodingNode, n2: EncodingNode) -> Self {
-        let count = n1.count() + n2.count();
-        let (left, right) = match n1.cmp(&n2) {
-            std::cmp::Ordering::Less => (n1, n2),
-            _ => (n2, n1),
-        };
-
-        Self::Node {
-            count,
-            left: left.into(),
-            right: right.into(),
+fn impl_make_st(table: Rc<RefCell<SymbolTable>>, tree: &EncodingNode, path: Vec<Direction>) {
+    match tree {
+        EncodingNode::Leaf { byte, .. } => {
+            table.borrow_mut().insert(*byte, path);
         }
-    }
+        EncodingNode::Node { left, right, .. } => {
+            let mut left_path = path.clone();
+            left_path.push(Direction::Left);
 
-    pub fn to_symbol_table(&self) -> SymbolTable {
-        let st = Rc::new(RefCell::new(HashMap::new()));
-        impl_make_st(st.clone(), self, vec![]);
-        st.take()
-    }
+            impl_make_st(table.clone(), *&left, left_path);
+
+            let mut right_path = path.clone();
+            right_path.push(Direction::Right);
+
+            impl_make_st(table.clone(), *&right, right_path);
+        }
+    };
 }
 
 #[cfg(test)]
@@ -129,8 +120,6 @@ mod tests {
         let l2 = EncodingNode::new_leaf(0xee, 7);
 
         let node = EncodingNode::join(l1, l2);
-
-        assert_eq!(node.height(), 2);
 
         match &node {
             EncodingNode::Node {
@@ -150,8 +139,6 @@ mod tests {
         let l3 = EncodingNode::new_leaf(0x66, 88);
 
         let node = EncodingNode::join(l3, node);
-
-        assert_eq!(node.height(), 3);
 
         let min_node = node.get_min_node();
         assert_eq!(min_node.count(), &3);

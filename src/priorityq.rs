@@ -1,4 +1,5 @@
 use crate::encoding::EncodingNode;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct PriorityQ {
@@ -11,20 +12,21 @@ impl PriorityQ {
         PriorityQ { node, next: None }
     }
 
-    fn push(self, node: EncodingNode) -> Self {
-        let next = Some(Box::new(self));
-        PriorityQ { node, next }
-    }
+    pub fn from(hist: &BTreeMap<u8, usize>) -> anyhow::Result<Self> {
+        let mut iter = hist.iter();
 
-    pub fn pop(self) -> (EncodingNode, Option<Box<Self>>) {
-        (self.node, self.next)
-    }
+        let root_node = match iter.next() {
+            Some((k, v)) => Ok(EncodingNode::new_leaf(*k, *v)),
+            None => Err(anyhow::format_err!("histogram must not be empty")),
+        }?;
 
-    pub fn len(&self) -> usize {
-        match &self.next {
-            None => 1,
-            Some(tail) => 1 + tail.len(),
+        let mut queue = PriorityQ::new(root_node);
+        for (k, v) in iter {
+            let node = EncodingNode::new_leaf(*k, *v);
+            queue = queue.enque(node);
         }
+
+        Ok(queue)
     }
 
     pub fn enque(self, node: EncodingNode) -> Self {
@@ -62,6 +64,15 @@ impl PriorityQ {
         };
 
         root
+    }
+
+    fn push(self, node: EncodingNode) -> Self {
+        let next = Some(Box::new(self));
+        PriorityQ { node, next }
+    }
+
+    fn pop(self) -> (EncodingNode, Option<Box<Self>>) {
+        (self.node, self.next)
     }
 }
 
