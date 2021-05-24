@@ -27,22 +27,19 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn encode<R: Read + Seek>(reader: &mut R, writer: &mut impl Write) -> anyhow::Result<()> {
+    // build and write out histogram
     let mut hist: BTreeMap<u8, usize> = BTreeMap::new();
     for byte in reader.bytes() {
         let i = byte?;
         *hist.entry(i).or_insert(0) += 1;
     }
-
-    let root = huffman_tree(&hist)?;
-
-    // translate tree into encoding paths.
-    let symbol_table = root.to_symbol_table();
     write_header(writer, &mut hist)?;
-
-    let mut path_writer = HuffmanPathWriter::new();
-
-    // reset reader
     reader.seek(SeekFrom::Start(0))?;
+
+    // build huffman tree from hist and write data out
+    let root = huffman_tree(&hist)?;
+    let symbol_table = root.to_symbol_table();
+    let mut path_writer = HuffmanPathWriter::new();
     for b in reader.bytes() {
         match symbol_table.get(&b?) {
             Some(path) => {
@@ -51,8 +48,8 @@ fn encode<R: Read + Seek>(reader: &mut R, writer: &mut impl Write) -> anyhow::Re
             None => anyhow::bail!("key should never be empty"),
         }
     }
-
     path_writer.flush(writer)?;
+    
     Ok(())
 }
 
